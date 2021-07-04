@@ -1,0 +1,48 @@
+# Name your workflow
+name: CD
+
+# Set on which events you want run the actions.
+# In this case the workflow will run on push for master and on pull request for master and develop branches
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  delivery:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        node: [14.17.2]
+    runs-on: ${{ matrix.os }}
+  
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v2.2.0
+
+      - name: Checkout master branch
+        uses: actions/checkout@v2.3.4
+
+      - name: Cache node_modules
+        uses: actions/cache@v2.1.6
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: node_modules
+          # An explicit key for restoring and saving the cache
+          key: ${{ matrix.os }}-node-v${{ matrix.node }}-deps-${{ hashFiles(format('{0}{1}', github.workspace, '/package-lock.json')) }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: yarn
+
+      - name: Run ESLint
+        run: yarn run lint
+      
+      - name: Generate page
+        run: yarn generate
+        
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3.1.12
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
